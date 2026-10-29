@@ -14,12 +14,15 @@ let isRefreshingAll = false;
 let pendingDeleteId = null;
 
 // Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     loadSavedWebsites();
     initSidebarState();
     setupEventListeners();
     renderDashboard();
+
+    // Fetch from central server database (multi-device support)
+    await fetchWebsitesFromServer();
 
     // Request desktop notification permission if supported
     if ('Notification' in window && Notification.permission === 'default') {
@@ -28,6 +31,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Periodic Background Check every 60 seconds
     setInterval(checkAllWebsites, 60000);
+
+    // Periodic Sync with Server every 15 seconds (syncs changes from other devices)
+    setInterval(fetchWebsitesFromServer, 15000);
+
+    // Refresh when user returns to tab/window
+    window.addEventListener('focus', () => {
+        fetchWebsitesFromServer();
+    });
 
     // Periodic Relative Time refresh every 15 seconds
     setInterval(updateRelativeTimes, 15000);
@@ -100,7 +111,7 @@ function applyTheme(theme, reRenderCharts = false) {
 // ==========================================================================
 
 /**
- * Load and normalize stored websites from localStorage
+ * Load and normalize stored websites from localStorage (instant cache)
  */
 function loadSavedWebsites() {
     try {
@@ -109,7 +120,7 @@ function loadSavedWebsites() {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
                 websites = parsed.map(site => ({
-                    id: site.id || Date.now() + Math.random(),
+                    id: String(site.id || Date.now() + Math.random()),
                     url: site.url,
                     status: site.status || 'pending',
                     latency: typeof site.latency === 'number' ? site.latency : 0,
@@ -126,13 +137,73 @@ function loadSavedWebsites() {
 }
 
 /**
- * Save current state to localStorage
+ * Fetch websites from the centralized server database (multi-device sync)
+ */
+async function fetchWebsitesFromServer() {
+    try {
+        const response = await fetch('/api/websites');
+        if (!response.ok) return;
+        const serverSites = await response.json();
+
+        if (Array.isArray(serverSites)) {
+            if (serverSites.length > 0) {
+                // Central database has data: sync to local state & storage
+                websites = serverSites.map(site => ({
+                    id: String(site.id),
+                    url: site.url,
+                    status: site.status || 'pending',
+                    latency: typeof site.latency === 'number' ? site.latency : 0,
+                    statusCode: site.statusCode || (site.status === 'up' ? 200 : (site.status === 'down' ? 503 : 0)),
+                    lastChecked: site.lastChecked || null,
+                    history: Array.isArray(site.history) ? site.history : []
+                }));
+                saveDataLocal();
+                renderDashboard();
+            } else if (websites.length > 0) {
+                // Server is empty but client has local cache: sync up to server
+                await syncLocalWebsitesToServer();
+            }
+        }
+    } catch (e) {
+        console.warn('Could not sync with central server, using local cache:', e);
+    }
+}
+
+/**
+ * Sync local cache to server database
+ */
+async function syncLocalWebsitesToServer() {
+    try {
+        const response = await fetch('/api/websites/sync', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ websites })
+        });
+        if (response.ok) {
+            const synced = await response.json();
+            if (Array.isArray(synced) && synced.length > 0) {
+                websites = synced.map(s => ({ ...s, id: String(s.id) }));
+                saveDataLocal();
+                renderDashboard();
+            }
+        }
+    } catch (e) {
+        console.warn('Failed to sync local websites to server:', e);
+    }
+}
+
+/**
+ * Save current state
  */
 function saveData() {
+    saveDataLocal();
+}
+
+function saveDataLocal() {
     try {
         localStorage.setItem('myWebsites', JSON.stringify(websites));
     } catch (e) {
-        console.error('Error saving websites:', e);
+        console.error('Error saving websites locally:', e);
     }
 }
 
@@ -660,7 +731,7 @@ function renderWebsitesTable() {
         const relativeTime = formatRelativeTime(site.lastChecked);
 
         // Find actual index in complete array for move up/down
-        const actualIndex = websites.findIndex(w => w.id === site.id);
+        const actualIndex = websites.findIndex(w => String(w.id) === String(site.id));
         const isFirst = actualIndex === 0;
         const isLast = actualIndex === websites.length - 1;
 
@@ -857,10 +928,28 @@ async function submitAddWebsite(event) {
         Adding & Checking...
     `;
 
-    // 3. Construct new website entry
+    // 3. Save to central server database
+    let siteId = String(Date.now());
+    let normalizedUrl = rawUrl;
+
+    try {
+        const response = await fetch('/api/websites', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: rawUrl, id: siteId })
+        });
+        if (response.ok) {
+            const created = await response.json();
+            siteId = String(created.id);
+            normalizedUrl = created.url;
+        }
+    } catch (e) {
+        console.warn('Backend unavailable, saving locally:', e);
+    }
+
     const newSite = {
-        id: Date.now(),
-        url: rawUrl,
+        id: siteId,
+        url: normalizedUrl,
         status: 'pending',
         latency: 0,
         statusCode: 0,
@@ -875,7 +964,7 @@ async function submitAddWebsite(event) {
     // 4. Perform Immediate Health Check
     try {
         await checkSingleWebsite(newSite.id);
-        showToast(`Website "${getDomainFromUrl(rawUrl)}" added successfully!`, 'success');
+        showToast(`Website "${getDomainFromUrl(normalizedUrl)}" added successfully!`, 'success');
         closeAddModal();
     } catch (e) {
         console.error('Error during initial check:', e);
@@ -901,10 +990,10 @@ function showInputError(input, errorEl, msg) {
 // ==========================================================================
 
 function openDeleteModal(id) {
-    const site = websites.find(w => w.id === id);
+    const site = websites.find(w => String(w.id) === String(id));
     if (!site) return;
 
-    pendingDeleteId = id;
+    pendingDeleteId = String(id);
     const modal = document.getElementById('deleteConfirmModal');
     const targetLabel = document.getElementById('deleteTargetUrl');
 
@@ -924,17 +1013,24 @@ function closeDeleteModal() {
     }
 }
 
-function executeDeleteWebsite() {
+async function executeDeleteWebsite() {
     if (!pendingDeleteId) return;
 
-    const site = websites.find(w => w.id === pendingDeleteId);
+    const idToDelete = String(pendingDeleteId);
+    const site = websites.find(w => String(w.id) === idToDelete);
     const domain = site ? getDomainFromUrl(site.url) : 'Website';
 
-    websites = websites.filter(w => w.id !== pendingDeleteId);
+    websites = websites.filter(w => String(w.id) !== idToDelete);
     saveData();
     closeDeleteModal();
     renderDashboard();
     showToast(`Removed "${domain}" from monitoring`, 'info');
+
+    try {
+        await fetch(`/api/websites/${idToDelete}`, { method: 'DELETE' });
+    } catch (e) {
+        console.warn('Failed to delete on server:', e);
+    }
 }
 
 // ==========================================================================
@@ -942,7 +1038,7 @@ function executeDeleteWebsite() {
 // ==========================================================================
 
 function moveWebsiteUp(id) {
-    const index = websites.findIndex(w => w.id === id);
+    const index = websites.findIndex(w => String(w.id) === String(id));
     if (index > 0) {
         [websites[index - 1], websites[index]] = [websites[index], websites[index - 1]];
         saveData();
@@ -952,7 +1048,7 @@ function moveWebsiteUp(id) {
 }
 
 function moveWebsiteDown(id) {
-    const index = websites.findIndex(w => w.id === id);
+    const index = websites.findIndex(w => String(w.id) === String(id));
     if (index >= 0 && index < websites.length - 1) {
         [websites[index], websites[index + 1]] = [websites[index + 1], websites[index]];
         saveData();
@@ -969,7 +1065,8 @@ function moveWebsiteDown(id) {
  * Execute a single check against `/api/check?url=...`
  */
 async function checkSingleWebsite(id) {
-    const index = websites.findIndex(w => w.id === id);
+    const targetId = String(id);
+    const index = websites.findIndex(w => String(w.id) === targetId);
     if (index === -1) return;
 
     const site = websites[index];
@@ -1005,12 +1102,37 @@ async function checkSingleWebsite(id) {
             showToast(`🟢 Recovered: ${getDomainFromUrl(site.url)} is back UP!`, 'success');
         }
 
+        // Sync updated metrics to central database
+        fetch(`/api/websites/${targetId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: newStatus,
+                latency: newLatency,
+                statusCode: newCode,
+                lastChecked: checkedAt,
+                history: websites[index].history
+            })
+        }).catch(() => {});
+
     } catch (err) {
         console.error(`Check error for ${site.url}:`, err);
         websites[index].status = 'down';
         websites[index].latency = 0;
         websites[index].statusCode = 503;
         websites[index].lastChecked = new Date().toISOString();
+
+        fetch(`/api/websites/${targetId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                status: 'down',
+                latency: 0,
+                statusCode: 503,
+                lastChecked: websites[index].lastChecked,
+                history: websites[index].history || []
+            })
+        }).catch(() => {});
     }
 
     saveData();

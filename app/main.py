@@ -2,7 +2,7 @@ import os
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import check, health
+from app.routes import check, health, websites
 
 app = FastAPI(
     title="PingChecker API",
@@ -22,6 +22,7 @@ app.add_middleware(
 # Register Routes
 app.include_router(check.router, prefix="/api")
 app.include_router(health.router, prefix="/api")
+app.include_router(websites.router, prefix="/api")
 
 # Mount public directory for static assets and HTML if present (local dev support)
 if os.path.exists("public"):
