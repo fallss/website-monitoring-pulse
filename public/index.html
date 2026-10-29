@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="NEXCT Monitoring - Elegant Website Monitoring & Analytics Dashboard with Warm Editorial Aesthetics.">
+    <title>NEXCT Monitoring | Website Observability Dashboard</title>
+
+    <!-- Immediate Theme Initialization (Prevents Theme Flash / FOUC) -->
+    <script>
+        (function() {
+            try {
+                const savedTheme = localStorage.getItem('nexct_theme');
+                const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const theme = savedTheme || (prefersDark ? 'dark' : 'light');
+                document.documentElement.setAttribute('data-theme', theme);
+            } catch (e) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    
+    <!-- Favicon Links -->
+    <link rel="icon" type="image/png" href="favicon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="favicon/favicon.svg" />
+    <link rel="shortcut icon" href="favicon/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-title" content="NEXCT" />
+    <link rel="manifest" href="favicon/site.webmanifest" />
+
+    <!-- Google Fonts: Manrope (Headings & Metrics) & Plus Jakarta Sans (UI & Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Design System Stylesheet -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Mobile Drawer Overlay -->
+        <div id="mobileDrawerOverlay" class="mobile-drawer-overlay" onclick="toggleMobileSidebar(false)"></div>
+
+        <!-- ==========================================================================
+             SIDEBAR NAVIGATION
+             ========================================================================== -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <div class="brand-icon-wrapper">
+                    <!-- Observability Radar SVG Icon -->
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                        <path d="M2 12h20"></path>
+                    </svg>
+                </div>
+                <div class="brand-text-wrapper">
+                    <div class="brand-title">
+                        <span>NEXCT</span>
+                        <span class="brand-badge">PRO</span>
+                    </div>
+                    <span class="brand-subtitle">MONITORING</span>
+                </div>
+                <button class="btn-sidebar-close-mobile" onclick="toggleMobileSidebar(false)" aria-label="Close Navigation Drawer">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <nav class="sidebar-nav">
+                <span class="nav-section-label">Monitoring</span>
+                <a href="#overview" class="nav-item active" id="navOverview" onclick="navigateSection('overview')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="9" rx="1.5"/>
+                        <rect x="14" y="3" width="7" height="5" rx="1.5"/>
+                        <rect x="14" y="12" width="7" height="9" rx="1.5"/>
+                        <rect x="3" y="16" width="7" height="5" rx="1.5"/>
+                    </svg>
+                    <span class="nav-text">Overview</span>
+                </a>
+                <a href="#websitesTable" class="nav-item" id="navWebsites" onclick="navigateSection('websitesTable')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/>
+                        <path d="M2 12h20"/>
+                    </svg>
+                    <span class="nav-text">Websites / Monitors</span>
+                    <span class="nav-counter tabular-nums" id="navSitesCount">0</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div class="system-status-chip">
+                    <div class="status-pulse-dot"></div>
+                    <span class="status-chip-text">All systems operational</span>
+                </div>
+                <div class="sidebar-bottom-row">
+                    <span class="version-info">v1.2.0 • <span class="env-tag">PROD</span></span>
+                    <button class="btn-sidebar-collapse" id="btnSidebarCollapse" onclick="toggleSidebarCollapse()" title="Collapse Sidebar" aria-label="Collapse Sidebar">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="15 18 9 12 15 6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- ==========================================================================
+             MAIN CONTENT WRAPPER & TOPBAR
+             ========================================================================== -->
+        <div class="main-wrapper">
+            <!-- Topbar Header -->
+            <header class="topbar">
+                <div class="topbar-left">
+                    <button class="btn-mobile-menu" onclick="toggleMobileSidebar(true)" aria-label="Open Navigation Menu">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="3" y1="12" x2="21" y2="12"></line>
+                            <line x1="3" y1="6" x2="21" y2="6"></line>
+                            <line x1="3" y1="18" x2="21" y2="18"></line>
+                        </svg>
+                    </button>
+                    <div class="topbar-page-info">
+                        <h1 class="topbar-page-title">Monitoring Overview</h1>
+                        <p class="topbar-page-desc">A clear view of your website performance.</p>
+                    </div>
+                </div>
+
+                <div class="topbar-right">
+                    <!-- Search Input in Topbar -->
+                    <div class="topbar-search-wrapper">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        <input type="text" id="topbarSearch" class="topbar-search-input" placeholder="Search websites..." oninput="handleSearch(this.value)" autocomplete="off">
+                    </div>
+
+                    <!-- Refresh Button -->
+                    <button class="btn-icon-action" id="btnRefreshAll" onclick="handleRefreshAll()" title="Refresh All Websites" aria-label="Refresh All Websites">
+                        <svg id="refreshIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+                        </svg>
+                        <span class="refresh-label">Refresh</span>
+                    </button>
+
+                    <!-- Theme Toggle Button (Light/Dark Mode) -->
+                    <button class="btn-theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" aria-label="Switch theme" title="Switch theme">
+                        <!-- Sun Icon (Shown in Light Mode) -->
+                        <svg class="theme-icon sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="23"></line>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                            <line x1="1" y1="12" x2="3" y2="12"></line>
+                            <line x1="21" y1="12" x2="23" y2="12"></line>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                        </svg>
+                        <!-- Moon Icon (Shown in Dark Mode) -->
+                        <svg class="theme-icon moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
+                    </button>
+
+                    <!-- Primary Action CTA -->
+                    <button class="btn-primary-action" onclick="openAddModal()" title="Add Website" aria-label="Add Website">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="12" y1="5" x2="12" y2="19"></line>
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                        </svg>
+                        <span class="btn-add-text">Add Website</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Main Content Area -->
+            <main class="main-content" id="overview">
+                <!-- SECTION 1: SUMMARY METRICS -->
+                <section class="metrics-grid">
+                    <!-- Total Websites Card -->
+                    <div class="metric-card card-total" id="metricCardTotal" onclick="setFilterStatus('all')" title="Click to view all websites">
+                        <div class="metric-card-top">
+                            <span class="metric-card-label">01 — Total Websites</span>
+                            <div class="metric-icon-box caramel">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="2" y1="12" x2="22" y2="12"></line>
+                                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="metric-card-middle">
+                            <span class="metric-value tabular-nums" id="totalCount">0</span>
+                            <span class="metric-status-badge caramel" id="totalSitesBadge">Registered</span>
+                        </div>
+                        <div class="metric-card-bottom">
+                            <span>Monitored website endpoints</span>
+                            <span id="metricFilterHintTotal">View all →</span>
+                        </div>
+                    </div>
+
+                    <!-- Websites Online Card -->
+                    <div class="metric-card card-online" id="metricCardOnline" onclick="setFilterStatus('up')" title="Click to view online websites">
+                        <div class="metric-card-top">
+                            <span class="metric-card-label">02 — Websites Online</span>
+                            <div class="metric-icon-box green">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="metric-card-middle">
+                            <span class="metric-value text-online tabular-nums" id="onlineCount">0</span>
+                            <span class="metric-status-badge green">
+                                <span class="status-badge-dot"></span>
+                                Healthy
+                            </span>
+                        </div>
+                        <div class="metric-card-bottom">
+                            <span id="onlinePercentageSub">0% operational</span>
+                            <span id="metricFilterHintOnline">Filter online →</span>
+                        </div>
+                    </div>
+
+                    <!-- Websites Offline Card -->
+                    <div class="metric-card card-offline" id="metricCardOffline" onclick="setFilterStatus('down')" title="Click to view offline websites">
+                        <div class="metric-card-top">
+                            <span class="metric-card-label">03 — Websites Offline</span>
+                            <div class="metric-icon-box red">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <circle cx="12" cy="12" r="10"></circle>
+                                    <line x1="15" y1="9" x2="9" y2="15"></line>
+                                    <line x1="9" y1="9" x2="15" y2="15"></line>
+                                </svg>
+                            </div>
+                        </div>
+                        <div class="metric-card-middle">
+                            <span class="metric-value text-offline tabular-nums" id="offlineCount">0</span>
+                            <span class="metric-status-badge red" id="offlineStatusBadge">
+                                <span class="status-badge-dot"></span>
+                                Attention
+                            </span>
+                        </div>
+                        <div class="metric-card-bottom">
+                            <span id="offlineDesc">Needs investigation</span>
+                            <span id="metricFilterHintOffline">Filter offline →</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 2: CHARTS & OVERVIEW -->
+                <section class="charts-grid-row">
+                    <!-- Website Status Overview Donut Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div class="chart-header-text">
+                                <h2 class="chart-title">Website Status</h2>
+                                <p class="chart-subtitle">Real-time health distribution</p>
+                            </div>
+                            <span class="chart-badge-info tabular-nums" id="uptimeBadge">0% Health</span>
+                        </div>
+
+                        <div class="donut-chart-container" id="donutContainer">
+                            <!-- Rendered dynamically via JS: SVG Donut or Warm Empty State -->
+                        </div>
+
+                        <div class="donut-legend" id="donutLegend">
+                            <div class="legend-item">
+                                <span class="legend-dot online"></span>
+                                <span class="legend-text">Online:</span>
+                                <span class="legend-value tabular-nums" id="legendOnline">0 (0%)</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-dot offline"></span>
+                                <span class="legend-text">Offline:</span>
+                                <span class="legend-value tabular-nums" id="legendOffline">0 (0%)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Response Time Performance Chart -->
+                    <div class="chart-card">
+                        <div class="chart-header">
+                            <div class="chart-header-text">
+                                <h2 class="chart-title">Response Time</h2>
+                                <p class="chart-subtitle">Track website response performance over available monitoring checks</p>
+                            </div>
+                            <span class="chart-badge-info" id="chartSampleCount">Current Checks</span>
+                        </div>
+
+                        <div class="perf-chart-container" id="perfChartContainer">
+                            <!-- Key metrics sub-bar -->
+                            <div class="perf-chart-stats">
+                                <div class="perf-stat-item">
+                                    <span class="perf-stat-label">Average Latency</span>
+                                    <span class="perf-stat-value tabular-nums" id="perfAvgLatency">0 ms</span>
+                                </div>
+                                <div class="perf-stat-item">
+                                    <span class="perf-stat-label">Fastest Target</span>
+                                    <span class="perf-stat-value tabular-nums text-online" id="perfMinLatency">0 ms</span>
+                                </div>
+                                <div class="perf-stat-item">
+                                    <span class="perf-stat-label">Slowest Target</span>
+                                    <span class="perf-stat-value tabular-nums text-offline" id="perfMaxLatency">0 ms</span>
+                                </div>
+                            </div>
+
+                            <!-- Interactive SVG Chart Canvas -->
+                            <div class="perf-svg-wrapper" id="perfSvgWrapper">
+                                <!-- Rendered dynamically via JS -->
+                            </div>
+
+                            <!-- Interactive Tooltip Floating Overlay -->
+                            <div id="chartTooltip" class="chart-tooltip"></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- SECTION 3: WEBSITES TABLE -->
+                <section class="table-card" id="websitesTable">
+                    <div class="table-card-header">
+                        <div class="table-header-left">
+                            <div class="table-title-row">
+                                <h2 class="table-title">Your Websites</h2>
+                                <span class="table-count-badge tabular-nums" id="tableHeaderCount">0 monitors</span>
+                            </div>
+                            <p class="table-desc">Manage your registered monitors in one place.</p>
+                        </div>
+
+                        <div class="table-controls">
+                            <!-- Inline Search Box (available on Mobile & Desktop) -->
+                            <div class="table-search-box">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <circle cx="11" cy="11" r="8"></circle>
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                                </svg>
+                                <input type="text" id="tableSearchInput" class="table-search-input" placeholder="Search by domain..." oninput="handleSearch(this.value)" autocomplete="off">
+                                <button class="btn-clear-search" id="btnClearSearch" onclick="clearSearch()" title="Clear search" aria-label="Clear search" style="display: none;">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+
+                            <!-- Status Filter Tabs -->
+                            <div class="filter-tabs">
+                                <button class="filter-tab active" id="tabFilterAll" onclick="setFilterStatus('all')">All (<span id="tabCountAll">0</span>)</button>
+                                <button class="filter-tab" id="tabFilterUp" onclick="setFilterStatus('up')">Online (<span id="tabCountUp">0</span>)</button>
+                                <button class="filter-tab" id="tabFilterDown" onclick="setFilterStatus('down')">Offline (<span id="tabCountDown">0</span>)</button>
+                            </div>
+
+                            <!-- Add Website Secondary Entry Button (Desktop/Tablet) -->
+                            <button class="btn-primary-action desktop-add-btn" onclick="openAddModal()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                                </svg>
+                                <span>Add Website</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Responsive Table -->
+                    <div class="table-responsive">
+                        <table class="custom-table" id="websitesMainTable">
+                            <thead>
+                                <tr>
+                                    <th style="min-width: 260px;">Website</th>
+                                    <th style="min-width: 140px;">Status</th>
+                                    <th style="min-width: 150px;">Response Time</th>
+                                    <th style="min-width: 150px;">Last Checked</th>
+                                    <th style="min-width: 130px; text-align: right;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="websiteTableBody">
+                                <!-- Rendered dynamically via JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty Table State -->
+                    <div class="empty-table-state" id="emptyTableState" style="display: none;">
+                        <div class="empty-state-graphic">
+                            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                            </svg>
+                        </div>
+                        <h3 class="empty-state-title" id="emptyStateTitle">Your monitoring overview starts here.</h3>
+                        <p class="empty-state-desc" id="emptyStateDesc">Add a website to see its current status and performance.</p>
+                        <button class="btn-primary-action" id="emptyStateCta" onclick="openAddModal()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            <span>Add Website</span>
+                        </button>
+                    </div>
+                </section>
+
+                <!-- FOOTER -->
+                <footer class="dashboard-footer">
+                    <div>
+                        <span class="footer-brand">NEXCT Monitoring</span> • Real-Time Website Observability Platform
+                    </div>
+                    <div>
+                        © 2026 NEXCT Production • Akbar Iqbnu Prayoga
+                    </div>
+                </footer>
+            </main>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         ADD WEBSITE MODAL
+         ========================================================================== -->
+    <div id="addWebsiteModal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="addModalTitle">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-header-content">
+                    <div class="modal-icon-badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="2" y1="12" x2="22" y2="12"></line>
+                            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                        </svg>
+                    </div>
+                    <div class="modal-title-wrap">
+                        <h3 class="modal-title" id="addModalTitle">Add a Website</h3>
+                        <p class="modal-desc">Enter the URL you want to monitor.</p>
+                    </div>
+                </div>
+                <button class="btn-modal-close" onclick="closeAddModal()" aria-label="Close dialog">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <form id="addWebsiteForm" onsubmit="submitAddWebsite(event)">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="modalUrlInput" class="form-label">Website URL</label>
+                        <div class="input-with-icon">
+                            <svg class="input-icon-left" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="2" y1="12" x2="22" y2="12"></line>
+                                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+                            </svg>
+                            <input type="text" id="modalUrlInput" class="modal-input" placeholder="https://example.com" autocomplete="off" spellcheck="false" required>
+                        </div>
+                        <span class="form-hint">Supports HTTPS and HTTP web endpoints.</span>
+                        <div class="form-error-msg" id="modalUrlError"></div>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeAddModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" id="btnSubmitAdd">
+                        <span id="btnSubmitAddText">Add Website</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         DELETE CONFIRMATION MODAL
+         ========================================================================== -->
+    <div id="deleteConfirmModal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="deleteModalTitle">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <div class="modal-header-content">
+                    <div class="modal-icon-badge danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                    </div>
+                    <div class="modal-title-wrap">
+                        <h3 class="modal-title" id="deleteModalTitle">Remove Website</h3>
+                        <p class="modal-desc">Are you sure you want to remove this website from monitoring?</p>
+                    </div>
+                </div>
+                <button class="btn-modal-close" onclick="closeDeleteModal()" aria-label="Close dialog">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body">
+                <p style="color: var(--text-secondary); font-size: 13.5px;">
+                    This will remove <strong id="deleteTargetUrl" style="color: var(--foreground); word-break: break-all;"></strong> from active monitoring. You can re-add it at any time.
+                </p>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+                <button type="button" class="btn-primary btn-danger" id="btnConfirmDelete" onclick="executeDeleteWebsite()">
+                    Remove Website
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Script -->
+    <script src="script.js"></script>
+</body>
+</html>
