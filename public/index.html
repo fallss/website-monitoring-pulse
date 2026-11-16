@@ -145,6 +145,18 @@
                         <span class="refresh-label">Refresh</span>
                     </button>
 
+                    <!-- Share & Backup Button -->
+                    <button class="btn-icon-action" id="btnShareBackup" onclick="openShareModal()" title="Bagikan & Backup Cache Device" aria-label="Share & Backup">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                        <span class="refresh-label">Share / Cache</span>
+                    </button>
+
                     <!-- Theme Toggle Button (Light/Dark Mode) -->
                     <button class="btn-theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" aria-label="Switch theme" title="Switch theme">
                         <!-- Sun Icon (Shown in Light Mode) -->
@@ -508,6 +520,94 @@
                 <button type="button" class="btn-primary btn-danger" id="btnConfirmDelete" onclick="executeDeleteWebsite()">
                     Remove Website
                 </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================================
+         SHARE & DEVICE CACHE BACKUP MODAL
+         ========================================================================== -->
+    <div id="shareBackupModal" class="modal-backdrop" aria-hidden="true" role="dialog" aria-labelledby="shareModalTitle">
+        <div class="modal-dialog" style="max-width: 520px;">
+            <div class="modal-header">
+                <div class="modal-header-content">
+                    <div class="modal-icon-badge" style="background: var(--badge-soft); color: var(--accent);">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="18" cy="5" r="3"></circle>
+                            <circle cx="6" cy="12" r="3"></circle>
+                            <circle cx="18" cy="19" r="3"></circle>
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                        </svg>
+                    </div>
+                    <div class="modal-title-wrap">
+                        <h3 class="modal-title" id="shareModalTitle">Share & Device Cache (Anti-Hilang)</h3>
+                        <p class="modal-desc">Bagikan link atau simpan cadangan ke perangkat lain.</p>
+                    </div>
+                </div>
+                <button class="btn-modal-close" onclick="closeShareModal()" aria-label="Close dialog">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 20px;">
+                <!-- Section A: Share URL -->
+                <div class="share-section">
+                    <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">🔗 Tautan Auto-Cache (Buka di Device Mana Pun)</label>
+                    <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.5;">
+                        Kirim tautan ini ke HP, laptop, atau browser lain. Begitu link dibuka, semua daftar website akan <strong>otomatis tersimpan ke cache perangkat tersebut</strong> dan tidak akan hilang!
+                    </p>
+                    <div class="input-with-icon" style="margin-bottom: 8px;">
+                        <input type="text" id="shareUrlInput" class="modal-input" readonly onclick="this.select()" style="font-size: 12px; font-family: monospace;">
+                    </div>
+                    <button type="button" class="btn-primary" onclick="copyShareUrl()" style="width: 100%; justify-content: center; height: 38px;">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <span id="btnCopyShareText">Salin Tautan Berbagi</span>
+                    </button>
+                </div>
+
+                <!-- Divider -->
+                <hr style="border: none; border-top: 1px solid var(--border-subtle); margin: 0;">
+
+                <!-- Section B: Export / Import JSON File -->
+                <div class="backup-section">
+                    <label class="form-label" style="font-weight: 600; margin-bottom: 6px; display: block;">💾 Cadangan Berkas (Export & Import JSON)</label>
+                    <p style="font-size: 12.5px; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.5;">
+                        Simpan berkas backup ke komputer/HP Anda atau pulihkan data dari file sebelumnya:
+                    </p>
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn-secondary" onclick="exportBackupJson()" style="flex: 1; justify-content: center; height: 38px;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            <span>Export JSON</span>
+                        </button>
+                        <label class="btn-secondary" style="flex: 1; justify-content: center; height: 38px; cursor: pointer; display: flex; align-items: center; gap: 6px; margin: 0;">
+                            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="17 8 12 3 7 8"></polyline>
+                                <line x1="12" y1="3" x2="12" y2="15"></line>
+                            </svg>
+                            <span>Import JSON</span>
+                            <input type="file" id="importJsonFileInput" accept=".json" onchange="importBackupJson(event)" style="display: none;">
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Inline Feedback Message -->
+                <div id="shareModalNotice" style="display: none; padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13px; background: var(--status-online-bg); color: var(--status-online); border: 1px solid var(--status-online-border); text-align: center; font-weight: 500;"></div>
+            </div>
+
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeShareModal()">Tutup</button>
             </div>
         </div>
     </div>

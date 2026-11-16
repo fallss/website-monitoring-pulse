@@ -17,6 +17,7 @@ let pendingDeleteId = null;
 document.addEventListener('DOMContentLoaded', async () => {
     initTheme();
     loadSavedWebsites();
+    checkUrlShareImport(); // Auto-import cache from shared URL if available
     initSidebarState();
     setupEventListeners();
     renderDashboard();
@@ -115,7 +116,10 @@ function applyTheme(theme, reRenderCharts = false) {
  */
 function loadSavedWebsites() {
     try {
-        const raw = localStorage.getItem('myWebsites');
+        let raw = localStorage.getItem('myWebsites');
+        if (!raw) {
+            raw = localStorage.getItem('myWebsites_backup');
+        }
         if (raw) {
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
@@ -138,6 +142,7 @@ function loadSavedWebsites() {
 
 /**
  * Fetch websites from the centralized server database (multi-device sync)
+ * Menggunakan smart-merge agar local cache TIDAK pernah terhapus jika server reset/berbeda.
  */
 async function fetchWebsitesFromServer() {
     try {
@@ -147,20 +152,55 @@ async function fetchWebsitesFromServer() {
 
         if (Array.isArray(serverSites)) {
             if (serverSites.length > 0) {
-                // Central database has data: sync to local state & storage
-                websites = serverSites.map(site => ({
-                    id: String(site.id),
-                    url: site.url,
-                    status: site.status || 'pending',
-                    latency: typeof site.latency === 'number' ? site.latency : 0,
-                    statusCode: site.statusCode || (site.status === 'up' ? 200 : (site.status === 'down' ? 503 : 0)),
-                    lastChecked: site.lastChecked || null,
-                    history: Array.isArray(site.history) ? site.history : []
-                }));
+                // Smart Merge: Gabungkan data server dengan local cache tanpa menghapus link lokal
+                const localMap = new Map();
+                websites.forEach(w => {
+                    if (w && w.url) localMap.set(w.url.toLowerCase(), w);
+                });
+
+                const serverUrls = new Set();
+                serverSites.forEach(s => {
+                    if (!s || !s.url) return;
+                    const sUrl = s.url.toLowerCase();
+                    serverUrls.add(sUrl);
+
+                    if (localMap.has(sUrl)) {
+                        const local = localMap.get(sUrl);
+                        const hist = (Array.isArray(s.history) && s.history.length > 0) ? s.history : local.history;
+                        localMap.set(sUrl, {
+                            ...local,
+                            status: s.status || local.status,
+                            latency: typeof s.latency === 'number' ? s.latency : local.latency,
+                            statusCode: s.statusCode || local.statusCode,
+                            lastChecked: s.lastChecked || local.lastChecked,
+                            history: hist || []
+                        });
+                    } else {
+                        localMap.set(sUrl, {
+                            id: String(s.id),
+                            url: s.url,
+                            status: s.status || 'pending',
+                            latency: typeof s.latency === 'number' ? s.latency : 0,
+                            statusCode: s.statusCode || (s.status === 'up' ? 200 : (s.status === 'down' ? 503 : 0)),
+                            lastChecked: s.lastChecked || null,
+                            history: Array.isArray(s.history) ? s.history : []
+                        });
+                    }
+                });
+
+                const merged = Array.from(localMap.values());
+                const missingOnServer = merged.filter(m => !serverUrls.has(m.url.toLowerCase()));
+
+                websites = merged;
                 saveDataLocal();
                 renderDashboard();
+
+                // Jika ada link di lokal yang belum ada di server (misal setelah serverless cold reset), sinkronkan kembali ke server
+                if (missingOnServer.length > 0) {
+                    await syncLocalWebsitesToServer();
+                }
             } else if (websites.length > 0) {
-                // Server is empty but client has local cache: sync up to server
+                // Server kosong tapi client punya cache lokal: upload cache ke server
                 await syncLocalWebsitesToServer();
             }
         }
@@ -202,6 +242,9 @@ function saveData() {
 function saveDataLocal() {
     try {
         localStorage.setItem('myWebsites', JSON.stringify(websites));
+        if (Array.isArray(websites) && websites.length > 0) {
+            localStorage.setItem('myWebsites_backup', JSON.stringify(websites));
+        }
     } catch (e) {
         console.error('Error saving websites locally:', e);
     }
@@ -217,6 +260,7 @@ function setupEventListeners() {
         if (e.key === 'Escape') {
             closeAddModal();
             closeDeleteModal();
+            closeShareModal();
             toggleMobileSidebar(false);
         }
     });
@@ -233,6 +277,13 @@ function setupEventListeners() {
     if (delModal) {
         delModal.addEventListener('click', (e) => {
             if (e.target === delModal) closeDeleteModal();
+        });
+    }
+
+    const shareModal = document.getElementById('shareBackupModal');
+    if (shareModal) {
+        shareModal.addEventListener('click', (e) => {
+            if (e.target === shareModal) closeShareModal();
         });
     }
 
@@ -1291,4 +1342,223 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+// ==========================================================================
+// SHARE & DEVICE CACHE PERSISTENCE SYSTEM (OPSI B)
+// ==========================================================================
+
+/**
+ * Generate share URL yang memuat seluruh daftar URL website dalam format base64
+ */
+function generateShareUrl() {
+    try {
+        const urls = websites.map(w => w.url);
+        const jsonStr = JSON.stringify(urls);
+        const encoded = btoa(encodeURIComponent(jsonStr));
+        const origin = window.location.origin;
+        const path = window.location.pathname;
+        return `${origin}${path}?share=${encoded}`;
+    } catch (e) {
+        console.error('Error generating share URL:', e);
+        return window.location.href;
+    }
+}
+
+/**
+ * Otomatis mendeteksi parameter share URL dan mengunduh/menyimpan daftar website ke cache perangkat
+ */
+function checkUrlShareImport() {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const shareData = params.get('share') || params.get('data') || params.get('import');
+        if (!shareData) return;
+
+        let importedList = [];
+        try {
+            const decoded = decodeURIComponent(atob(shareData));
+            const parsed = JSON.parse(decoded);
+            if (Array.isArray(parsed)) importedList = parsed;
+        } catch {
+            try {
+                const direct = JSON.parse(decodeURIComponent(shareData));
+                if (Array.isArray(direct)) importedList = direct;
+            } catch {
+                importedList = shareData.split(',').map(s => s.trim()).filter(Boolean);
+            }
+        }
+
+        if (importedList.length > 0) {
+            let addedCount = 0;
+            const existingUrls = new Set(websites.map(w => (w.url || '').toLowerCase()));
+
+            importedList.forEach(item => {
+                let url = typeof item === 'string' ? item : item.url;
+                if (!url) return;
+                url = url.trim();
+                if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+                if (!existingUrls.has(url.toLowerCase())) {
+                    websites.push({
+                        id: String(Date.now() + Math.floor(Math.random() * 10000)),
+                        url: url,
+                        status: 'pending',
+                        latency: 0,
+                        statusCode: 0,
+                        lastChecked: null,
+                        history: []
+                    });
+                    existingUrls.add(url.toLowerCase());
+                    addedCount++;
+                }
+            });
+
+            if (addedCount > 0) {
+                saveDataLocal();
+                renderDashboard();
+                syncLocalWebsitesToServer();
+                console.log(`[Cache Import] Berhasil menyimpan ${addedCount} link baru ke cache perangkat ini.`);
+                setTimeout(checkAllWebsites, 600);
+            }
+
+            // Bersihkan query string dari address bar browser agar tetap rapi
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    } catch (err) {
+        console.error('Error parsing share URL:', err);
+    }
+}
+
+/**
+ * Buka modal Share & Device Cache
+ */
+function openShareModal() {
+    const modal = document.getElementById('shareBackupModal');
+    const input = document.getElementById('shareUrlInput');
+    const notice = document.getElementById('shareModalNotice');
+    const copyBtnText = document.getElementById('btnCopyShareText');
+
+    if (input) {
+        input.value = generateShareUrl();
+    }
+    if (notice) {
+        notice.style.display = 'none';
+        notice.innerText = '';
+    }
+    if (copyBtnText) {
+        copyBtnText.innerText = 'Salin Tautan Berbagi';
+    }
+    if (modal) {
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+    }
+}
+
+/**
+ * Tutup modal Share & Device Cache
+ */
+function closeShareModal() {
+    const modal = document.getElementById('shareBackupModal');
+    if (modal) {
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+}
+
+/**
+ * Salin share URL ke clipboard
+ */
+function copyShareUrl() {
+    const input = document.getElementById('shareUrlInput');
+    const copyBtnText = document.getElementById('btnCopyShareText');
+    const notice = document.getElementById('shareModalNotice');
+    if (!input || !input.value) return;
+
+    copyToClipboard(input.value);
+
+    if (copyBtnText) copyBtnText.innerText = '✅ Tautan Berhasil Disalin!';
+    if (notice) {
+        notice.innerText = 'Tautan tersalin ke clipboard! Buka tautan ini di HP atau browser lain untuk menyimpan otomatis ke perangkat tersebut.';
+        notice.style.display = 'block';
+    }
+}
+
+/**
+ * Ekspor cache data website ke berkas JSON
+ */
+function exportBackupJson() {
+    try {
+        const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(websites, null, 2));
+        const downloadAnchor = document.createElement('a');
+        const dateStr = new Date().toISOString().split('T')[0];
+        downloadAnchor.setAttribute("href", dataStr);
+        downloadAnchor.setAttribute("download", `website-pulse-backup-${dateStr}.json`);
+        document.body.appendChild(downloadAnchor);
+        downloadAnchor.click();
+        downloadAnchor.remove();
+
+        const notice = document.getElementById('shareModalNotice');
+        if (notice) {
+            notice.innerText = 'Berkas cadangan JSON berhasil diunduh ke perangkat Anda.';
+            notice.style.display = 'block';
+        }
+    } catch (e) {
+        console.error('Export error:', e);
+    }
+}
+
+/**
+ * Impor berkas JSON cadangan dan simpan ke localStorage
+ */
+function importBackupJson(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const parsed = JSON.parse(e.target.result);
+            if (!Array.isArray(parsed)) throw new Error('Format berkas tidak valid.');
+
+            let addedCount = 0;
+            const existingUrls = new Set(websites.map(w => (w.url || '').toLowerCase()));
+
+            parsed.forEach(item => {
+                let url = typeof item === 'string' ? item : item.url;
+                if (!url) return;
+                url = url.trim();
+                if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+
+                if (!existingUrls.has(url.toLowerCase())) {
+                    websites.push({
+                        id: String(item.id || Date.now() + Math.floor(Math.random() * 10000)),
+                        url: url,
+                        status: item.status || 'pending',
+                        latency: typeof item.latency === 'number' ? item.latency : 0,
+                        statusCode: item.statusCode || 0,
+                        lastChecked: item.lastChecked || null,
+                        history: Array.isArray(item.history) ? item.history : []
+                    });
+                    existingUrls.add(url.toLowerCase());
+                    addedCount++;
+                }
+            });
+
+            saveDataLocal();
+            renderDashboard();
+            syncLocalWebsitesToServer();
+
+            const notice = document.getElementById('shareModalNotice');
+            if (notice) {
+                notice.innerText = `Berhasil memulihkan ${addedCount} website dari berkas cadangan!`;
+                notice.style.display = 'block';
+            }
+
+            setTimeout(checkAllWebsites, 600);
+        } catch (err) {
+            alert('Gagal membaca berkas JSON: pastikan format berkas sesuai.');
+        }
+        event.target.value = '';
+    };
+    reader.readAsText(file);
 }
