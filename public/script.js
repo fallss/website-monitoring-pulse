@@ -195,7 +195,7 @@ async function fetchWebsitesFromServer() {
                 saveDataLocal();
                 renderDashboard();
 
-                // Jika ada link di lokal yang belum ada di server (misal setelah serverless cold reset), sinkronkan kembali ke server
+                // Jika ada link di lokal yang belum ada di server, unggah ke server
                 if (missingOnServer.length > 0) {
                     await syncLocalWebsitesToServer();
                 }
@@ -616,8 +616,8 @@ function renderResponseTimeChart() {
 
     // Compute points for each site
     const points = activeSites.map((site, index) => {
-        const x = activeSites.length === 1 
-            ? padding.left + chartW / 2 
+        const x = activeSites.length === 1
+            ? padding.left + chartW / 2
             : padding.left + (index / (activeSites.length - 1)) * chartW;
         const normalizedY = (site.latency / yMaxVal) * chartH;
         const y = padding.top + chartH - normalizedY;
@@ -1115,7 +1115,7 @@ function moveWebsiteDown(id) {
 /**
  * Execute a single check against `/api/check?url=...`
  */
-async function checkSingleWebsite(id) {
+async function checkSingleWebsite(id, reRender = true) {
     const targetId = String(id);
     const index = websites.findIndex(w => String(w.id) === targetId);
     if (index === -1) return;
@@ -1164,7 +1164,7 @@ async function checkSingleWebsite(id) {
                 lastChecked: checkedAt,
                 history: websites[index].history
             })
-        }).catch(() => {});
+        }).catch(() => { });
 
     } catch (err) {
         console.error(`Check error for ${site.url}:`, err);
@@ -1183,11 +1183,65 @@ async function checkSingleWebsite(id) {
                 lastChecked: websites[index].lastChecked,
                 history: websites[index].history || []
             })
-        }).catch(() => {});
+        }).catch(() => { });
     }
 
     saveData();
-    renderDashboard();
+    if (reRender) {
+        renderDashboard();
+    } else {
+        updateSingleRowUI(targetId);
+    }
+}
+
+/**
+ * Update UI for a single row without full table re-render (optimasi memori & performa)
+ */
+function updateSingleRowUI(id) {
+    const site = websites.find(w => String(w.id) === String(id));
+    if (!site) return;
+    const row = document.getElementById(`site-row-${site.id}`);
+    if (!row) return;
+
+    // Status badge
+    const badgeEl = row.querySelector('.status-badge');
+    if (badgeEl) {
+        let badgeClass = 'status-pending';
+        let badgeLabel = 'Checking...';
+        if (site.status === 'up') {
+            badgeClass = 'status-up';
+            badgeLabel = `Online (${site.statusCode || 200})`;
+        } else if (site.status === 'down') {
+            badgeClass = 'status-down';
+            badgeLabel = `Offline (${site.statusCode || 503})`;
+        }
+        badgeEl.className = `status-badge ${badgeClass}`;
+        badgeEl.innerHTML = `<span class="status-badge-dot"></span> ${badgeLabel}`;
+    }
+
+    // Latency pill
+    const latencyEl = row.querySelector('.latency-pill');
+    if (latencyEl) {
+        let latencyClass = 'zero';
+        let latencyDisplay = '-';
+        if (site.latency > 0) {
+            latencyDisplay = `${site.latency} ms`;
+            if (site.latency < 250) latencyClass = 'fast';
+            else if (site.latency <= 600) latencyClass = 'medium';
+            else latencyClass = 'slow';
+        }
+        latencyEl.className = `latency-pill ${latencyClass} tabular-nums`;
+        latencyEl.innerHTML = `
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>
+            ${latencyDisplay}
+        `;
+    }
+
+    // Relative time
+    const relEl = document.getElementById(`rel-time-${site.id}`);
+    if (relEl) {
+        relEl.innerText = formatRelativeTime(site.lastChecked);
+    }
 }
 
 /**
@@ -1197,7 +1251,7 @@ async function handleSingleCheck(id) {
     const btn = document.getElementById(`btn-check-${id}`);
     if (btn) btn.classList.add('spinning');
 
-    await checkSingleWebsite(id);
+    await checkSingleWebsite(id, true);
 
     if (btn) btn.classList.remove('spinning');
     showToast('Status check completed', 'info');
@@ -1205,13 +1259,16 @@ async function handleSingleCheck(id) {
 
 /**
  * Trigger check for all registered websites
+ * Efisien: tidak merender ulang seluruh DOM 24 kali berturut-turut
  */
 async function checkAllWebsites() {
     if (websites.length === 0) return;
 
     for (const site of websites) {
-        await checkSingleWebsite(site.id);
+        await checkSingleWebsite(site.id, false);
     }
+    renderMetricCards();
+    renderCharts();
 }
 
 /**
@@ -1515,7 +1572,7 @@ function importBackupJson(event) {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             const parsed = JSON.parse(e.target.result);
             if (!Array.isArray(parsed)) throw new Error('Format berkas tidak valid.');
